@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import (
     QThread, 
+    QProcess,
     pyqtSignal
 )
 
@@ -47,26 +48,31 @@ class FFmpegWorker(QThread):
                 self.output_signal.emit("FFmpeg process completed successfully.")
         except Exception as e:
             self.error_signal.emit(f"Error: {e}")
+            
+class FFmpegWorkerProcess(QProcess):
+    def __init__(self) -> None:
+        super().__init__()
+        print_log(f"New worker with ID {id(self)}")
 
 class FFmpegGUI(QMainWindow):
-    worker: QThread | None = None
+    worker_process: QProcess
     
     def __init__(self) -> None:
-        # Initializations
+        # Initializing main window
         super().__init__()
         self.setWindowTitle("FFmpeg GUI")
-        self.setGeometry(100, 100, 600, 400)
+        # self.setGeometry(200, 200, 600, 300)
         
-        # Central Widget and Main Layout
+        # Central widget and main layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         central_layout = QVBoxLayout(central_widget)
 
-        # Grid Layout
+        # Grid layout
         input_output_layout = QGridLayout()
         central_layout.addLayout(input_output_layout)
         
-        # Input
+        # Input layout
         self.input_field = QLineEdit()
         input_output_layout.addWidget(self.input_field, 0, 0)
 
@@ -74,7 +80,7 @@ class FFmpegGUI(QMainWindow):
         input_button.clicked.connect(self.browse_input_file)
         input_output_layout.addWidget(input_button, 0, 1)
 
-        # Output
+        # Output layout
         self.output_field = QLineEdit()
         self.input_field.textChanged.connect(self.set_output_path_from_input)
         input_output_layout.addWidget(self.output_field, 1, 0)
@@ -83,14 +89,23 @@ class FFmpegGUI(QMainWindow):
         output_button.clicked.connect(self.browse_output_directory)
         input_output_layout.addWidget(output_button, 1, 1)
 
-        # Convert Button
+        # Convert button
         convert_button = QPushButton("Convert to MP4")
         convert_button.clicked.connect(self.convert_video)
         central_layout.addWidget(convert_button)
+        
+        # Initialize FFmpeg worker
+        self.worker_process = FFmpegWorkerProcess()
+        self.worker_process.readyReadStandardOutput.connect(self.on_stdout_signal)
+        self.worker_process.readyReadStandardError.connect(self.on_stderr_signal)
+        self.worker_process.started.connect(self.on_started_signal)
+        self.worker_process.finished.connect(self.on_finished_signal)
 
-        # Console Output Area
+        # Console output area
         self.output_area = QPlainTextEdit()
         self.output_area.setReadOnly(True)
+        self.output_area.ensureCursorVisible()
+        self.output_area.setCenterOnScroll(True)
         central_layout.addWidget(self.output_area)
 
         # Status Bar
@@ -140,44 +155,75 @@ class FFmpegGUI(QMainWindow):
             self.set_output_path_from_input(self.input_field.text())
         return
 
-    def append_output(self, text: str) -> None:
+    def append_output(self, text: str | None) -> None:
         self.output_area.appendPlainText(text)
         return
 
-    def display_error(self, text: str) -> None:
+    def display_error(self, text: str | None) -> None:
         QMessageBox.critical(self, "Error", text)
         return
+    
+    def display_info(self, text: str | None) -> None:
+        QMessageBox.information(self, "Information", text)
 
     def convert_video(self) -> None:
-        if self.worker is not None: 
-            if not self.worker.isFinished():
-                QMessageBox.critical(self, "Error", "Already active")
-                return
-            self.worker.quit()
-            self.worker.deleteLater()
+        # Check if there is an existing FFmpeg process
+        if self.worker_process.processId(): 
+            QMessageBox.critical(self, "Error", "Already active")
+            return
         
+        # Validate IO
         input_file: str = self.input_field.text()
         output_file: str = self.output_field.text()
         if not (input_file and output_file):
             QMessageBox.warning(self, "Error", "Please specify both input and output files.")
             return
         if not self.is_output_path_valid(output_file):
-            QMessageBox.warning(self, "Error", "Please fix output.")
+            QMessageBox.warning(self, "Error", "Please fix the output field.")
             return
-        
-        command: str = f"ffmpeg -i \"{input_file}\" -n \"{output_file}\""
 
-        self.output_area.clear()
+        # Set FFmpeg command
+        program: str = "ffmpeg"
+        arguments: list[str] = [
+            "-i", f"{input_file}",
+            "-n",
+            f"{output_file}"
+        ]
+
+        # Execute FFmpeg command
+        self.output_area.clear()        
+        self.worker_process.start(program, arguments)
+        # self.worker_process.start('python', ['-um','exit','1'])
         
-        self.worker = FFmpegWorker(command)
-        self.worker.output_signal.connect(self.append_output)
-        self.worker.error_signal.connect(self.display_error)
-        self.worker.start()
+        return
+    
+    def on_stdout_signal(self) -> None:
+        self.append_output(self.worker_process.readAllStandardOutput().data().decode().strip())
+        return
+        
+    def on_stderr_signal(self) -> None:
+        self.append_output(self.worker_process.readAllStandardError().data().decode().strip())
+        return
+    
+    def on_started_signal(self) -> None:
+        print_log(f"Worker {id(self.worker_process)} started.")
+        return
+    
+    def on_finished_signal(self) -> None:
+        print_log(f"Worker {id(self.worker_process)} finished!")
+        
+        if self.worker_process.exitCode() == 0:
+            self.display_info("FFmpeg task completed successfully.")
+        else:
+            self.display_error("FFmpeg encountered an error.")
         
         return
 
+def print_log(message: str) -> None:
+    print(f">> (LOG) {message}")
+    return
+
 def main() -> int:
-    # app = QApplication(sys.argv)
     app = QApplication([])
     window = FFmpegGUI()
     window.show()
