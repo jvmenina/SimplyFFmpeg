@@ -1,7 +1,7 @@
-from WidgetFFmpegOptions import Widget_FFmpegOptions
-from WidgetInputOutput import Widget_InputOutput
-from CommonHelpers import print_log
-from CommonWidgets import FFmpegWorkerProcess, Preset, QRadioTextButton, States
+from SimpleFFmpegApplication.WidgetFFmpegOptions import Widget_FFmpegOptions
+from SimpleFFmpegApplication.WidgetInputOutput import Widget_InputOutput
+from SimpleFFmpegApplication.CommonHelpers import print_error, print_log
+from SimpleFFmpegApplication.CommonWidgets import FFmpegWorkerProcess, GlobalSignals, Preset, QRadioTextButton, SharedStates, States
 
 
 from PyQt6.QtCore import QProcess
@@ -30,7 +30,7 @@ class SimpleFFmpeg(QMainWindow):
         """)
         
         ##### Initialize app-wide states
-        self.states = States()
+        self.shared_states = SharedStates()
 
         ##############################
         # Central Widget
@@ -46,14 +46,14 @@ class SimpleFFmpeg(QMainWindow):
         # IO Section
         ##############################
 
-        self.io_widget = Widget_InputOutput(self.states, central_widget)
+        self.io_widget = Widget_InputOutput(self.shared_states, central_widget)
         central_layout.addWidget(self.io_widget)
 
         ##############################
         # Options Section
         ##############################
 
-        self.options_widget = Widget_FFmpegOptions(self.states, central_widget)
+        self.options_widget = Widget_FFmpegOptions(self.shared_states, central_widget)
         central_layout.addWidget(self.options_widget)
 
         ##############################
@@ -98,7 +98,7 @@ class SimpleFFmpeg(QMainWindow):
         self.output_area.setFont(QFont("Lucida Console"))
         self.output_area.setReadOnly(True)
         self.output_area.ensureCursorVisible()
-        self.output_area.setCenterOnScroll(True)
+        # self.output_area.setCenterOnScroll(True)
         central_layout.addWidget(self.output_area)
 
         ##### Status Bar
@@ -106,16 +106,130 @@ class SimpleFFmpeg(QMainWindow):
 
     def appendOutput(self, text: str | None) -> None:
         self.output_area.appendPlainText(text)
+        self.output_area.moveCursor(QTextCursor.MoveOperation.End)
         return
 
-    def displayError(self, text: str | None) -> None:
+    def displayCriticalError(self, text: str | None) -> None:
         QMessageBox.critical(self, "Error", text)
-        return
+    
+    def displayError(self, text: str | None) -> None:
+        QMessageBox.warning(self, "Error", text)
 
     def displayInfo(self, text: str | None) -> None:
         QMessageBox.information(self, "Information", text)
 
     def compileCommand(self) -> tuple[str, list[str]] | None:
+        states: States = States()
+        
+        ##### Validate IO
+        input_file: str = self.io_widget.input_field.text()
+        output_file: str = self.io_widget.output_field.text()
+
+        if not (input_file and output_file):
+            QMessageBox.warning(self, "Error", "Please specify both input and output files.")
+            return
+
+        input_file_validity: int = self.io_widget.verifyInputFile()
+        output_file_validity: int = self.io_widget.verifyOutputFile()
+        if input_file_validity != 1:
+            self.displayError("Please fix the input field.\nInput file doesn't exist!")
+            return
+        if output_file_validity != 1:
+            if output_file_validity == 0:
+                self.displayError("Please fix the output field.\nOutput path is invalid!")
+                return
+            elif output_file_validity == -1 and not self.options_widget.overwrite.isChecked():
+                self.displayError("Please fix the output field.\nOutput file already exists!")
+                return
+            
+        states.setIO(input_file, output_file)
+        
+        ##### Overwrite
+        if self.options_widget.overwrite.isChecked():
+            states.toggleOverwrite()
+        
+        ##### Check for presets
+        has_selected_preset: bool = self.options_widget.preset.currentIndex() != 0
+        if has_selected_preset:
+            preset: Preset = self.options_widget.preset.currentData()
+            if type(preset) is not Preset or not preset:
+                QMessageBox.warning(self, "Error", "FATAL ERROR! Preset data is invalid.")
+                return
+            states.setPreset(preset)
+            
+        ##### Seek and Duration
+        seek: str = self.options_widget.seek.getValue()
+        if seek:
+            states.setSeek(seek)
+        duration: str = self.options_widget.duration.getValue()
+        if duration:
+            states.setDuration(duration)
+        
+        ##### Get values from options
+        # Video Options
+        if (
+            not has_selected_preset
+            and self.options_widget.video_options_widget.isChecked()
+        ):
+            # Video CRF and ABR
+            crf_radio_button: QAbstractButton | None = self.options_widget.video_bitrate_form.button(0)
+            if (
+                crf_radio_button is not None
+                and crf_radio_button.isChecked()
+                and type(crf_radio_button) is QRadioTextButton
+                and crf_radio_button.getValue() != ""
+            ):
+                states.setVideoCRF(crf_radio_button.getValue())
+
+            abr_radio_button: QAbstractButton | None = self.options_widget.video_bitrate_form.button(1)
+            if (
+                abr_radio_button is not None
+                and abr_radio_button.isChecked()
+                and type(abr_radio_button) is QRadioTextButton
+                and abr_radio_button.getValue() != ""
+            ):
+                states.setVideoBitrate(abr_radio_button.getValue())
+                
+            # Video Preset
+            video_preset: str = self.options_widget.video_preset.currentData()
+            states.setVideoPreset(video_preset)
+
+            # Video filters
+            fps: str = self.options_widget.fps.getValue()
+            if (fps):
+                states.addVideoFilter(f"fps={fps}")
+                
+            video_width: str = self.options_widget.video_width.getValue()
+            video_height: str = self.options_widget.video_height.getValue()
+            if (video_width or video_height):
+                if not video_height:
+                    video_height = "-2"
+                if not video_width:
+                    video_width = "-2"
+                states.addVideoFilter(f"scale={video_width}:{video_height}")
+
+        elif (self.options_widget.preset.currentIndex() == 0):
+            states.setCopyVideo()
+
+        # Audio Options
+        if (
+            not has_selected_preset
+            and self.options_widget.audio_options_widget.isChecked()
+        ):
+            audio_bitrate: str = self.options_widget.audio_bitrate.getValue()
+            if (audio_bitrate):
+                states.setAudioBitrate(audio_bitrate)
+            volume: str = self.options_widget.volume.getValue()
+            if (volume):
+                states.addAudioFilter(f"volume={volume}")
+
+        elif (self.options_widget.preset.currentIndex() == 0):
+            states.setCopyAudio()
+
+        ##### Set FFmpeg command
+        return states.compileState()
+
+    def compileCommand_OLD(self) -> tuple[str, list[str]] | None:   
         ##### Validate IO
         input_file: str = self.io_widget.input_field.text()
         output_file: str = self.io_widget.output_field.text()
@@ -163,18 +277,18 @@ class SimpleFFmpeg(QMainWindow):
                 crf_radio_button is not None
                 and crf_radio_button.isChecked()
                 and type(crf_radio_button) is QRadioTextButton
-                and crf_radio_button.get_value() != ""
+                and crf_radio_button.getValue() != ""
             ):
-                options.extend(("-crf", crf_radio_button.get_value()))
+                options.extend(("-crf", crf_radio_button.getValue()))
 
             abr_radio_button: QAbstractButton | None = quality_options.button(1)
             if (
                 abr_radio_button is not None
                 and abr_radio_button.isChecked()
                 and type(abr_radio_button) is QRadioTextButton
-                and abr_radio_button.get_value() != ""
+                and abr_radio_button.getValue() != ""
             ):
-                options.extend(("-b:v", abr_radio_button.get_value()))
+                options.extend(("-b:v", abr_radio_button.getValue()))
 
             # Video filters
             video_filters: str = ""
@@ -226,6 +340,17 @@ class SimpleFFmpeg(QMainWindow):
 
     def previewCommand(self) -> None:
         full_command: tuple[str, list[str]] | None = self.compileCommand()
+        
+        cOLD: tuple[str, list[str]] | None = self.compileCommand_OLD()
+        cNEW: tuple[str, list[str]] | None = self.compileCommand()
+        if cOLD and cNEW:
+            if sorted(cOLD[1]) == sorted(cNEW[1]):
+                print_log("The old and new `compileCommand`s report equal outputs.")
+            else:
+                print_error("The old and new `compileCommand`s DID NOT report equal outputs.")
+                print_log("OLD", cOLD)
+                print_log("NEW", cNEW)
+        
         if full_command is None:
             return
         program, arguments = full_command
@@ -285,7 +410,7 @@ class SimpleFFmpeg(QMainWindow):
             self.displayInfo("FFmpeg task completed successfully.")
             self.setStatusBarStatus("Previous task was successful! Ready.")
         else:
-            self.displayError("FFmpeg encountered an error.")
+            self.displayCriticalError("FFmpeg encountered an error.")
             self.setStatusBarStatus("Previous task failed! Ready.")
 
         self.io_widget.input_field.textChanged.emit(self.io_widget.input_field.text())

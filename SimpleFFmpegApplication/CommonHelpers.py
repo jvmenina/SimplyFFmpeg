@@ -1,8 +1,16 @@
 import os
+from typing import Any
+from sys import stderr
 
 
-def print_log(message: str) -> None:
-    print(f">> (LOG) {message}")
+def print_log(*message: Any) -> None:
+    print(">> (LOG) ", end="")
+    print(*message, sep=" ")
+    return
+
+def print_error(*message: Any) -> None:
+    print(">> (LOG) ", end="", file=stderr)
+    print(*message, sep=" ", file=stderr)
     return
 
 def is_output_path_valid(output_path: str) -> bool:

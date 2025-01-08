@@ -1,5 +1,5 @@
-from CommonHelpers import is_output_path_valid
-from CommonWidgets import States
+from SimpleFFmpegApplication.CommonHelpers import is_output_path_valid
+from SimpleFFmpegApplication.CommonWidgets import SharedStates
 
 
 from PyQt6.QtCore import QMimeData, QUrl
@@ -12,11 +12,10 @@ import re
 
 
 class Widget_InputOutput(QWidget):
-    def __init__(self, app_state: States, *args, **kwargs) -> None:
+    def __init__(self, shared_states: SharedStates, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.states: States = app_state
-        # self.states.valueChanged.connect(self.setOutputPathFromInput)
-        self.states.extensionChanged.connect(self.fixOutputPathExtension)
+        self.shared_states: SharedStates = shared_states
+        self.shared_states.signals.extensionChanged.connect(self.fixOutputPathExtension)
 
         ##### Main layout
         main_layout = QVBoxLayout(self)
@@ -118,7 +117,7 @@ class Widget_InputOutput(QWidget):
             return
         
         text: str = self.output_field.text()
-        extension: str = self.states.getExtension()
+        extension: str = self.shared_states.extension
         assert extension
 
         if re.search(fr"\.{extension}$", text) is None:
@@ -143,7 +142,7 @@ class Widget_InputOutput(QWidget):
         # Then, replace output filename based on the input filename
         output_field: str = self.output_field.text()
         output_directory: str = output_field if os.path.isdir(output_field) else os.path.split(output_field)[0]
-        extension: str = self.states.getExtension()
+        extension: str = self.shared_states.extension
         final_directory: str = output_directory if os.path.isdir(output_directory) else input_directory
         self.output_field.setText(os.path.join(final_directory, f"{input_file_name}_ed.{extension}"))
 

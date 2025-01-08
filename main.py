@@ -4,7 +4,7 @@ import sys
 from PyQt6.QtWidgets import QApplication
 
 
-from CoreApplication import SimpleFFmpeg
+from SimpleFFmpegApplication.CoreApplication import SimpleFFmpeg
 
 
 def main() -> int:
