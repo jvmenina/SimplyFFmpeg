@@ -2,7 +2,7 @@ from SimpleFFmpegApplication.CommonWidgets import Defaults, Preset, QLabelledLin
 
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QButtonGroup, QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QRadioButton, QVBoxLayout, QWidget, QComboBox
+from PyQt6.QtWidgets import QAbstractButton, QButtonGroup, QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QRadioButton, QVBoxLayout, QWidget, QComboBox
 
 
 class Widget_FFmpegOptions(QWidget):
@@ -87,13 +87,25 @@ class Widget_FFmpegOptions(QWidget):
         self.duration.setToolTip("\n".join(tooltip))
         seek_layout.addWidget(self.seek)
         seek_layout.addWidget(self.duration)
+        
+        ##############################
+        # FFmpeg Options -- Copy
+        ##############################
+        
+        self.copy_widget = QGroupBox("Copy Options", self)
+        copy_layout = QHBoxLayout(self.copy_widget)
+        main_layout.addWidget(self.copy_widget)
+        
+        self.copy_video = QCheckBox("Copy Video", self.copy_widget)
+        self.copy_audio = QCheckBox("Copy Audio", self.copy_widget)
+        copy_layout.addWidget(self.copy_video)
+        copy_layout.addWidget(self.copy_audio)
 
         ##############################
         # FFmpeg Options -- Video
         ##############################
         
         self.video_options_widget = QGroupBox("Video Options", self)
-        self.video_options_widget.setCheckable(True)
         video_options_layout = QVBoxLayout(self.video_options_widget)
         main_layout.addWidget(self.video_options_widget)
 
@@ -121,8 +133,10 @@ class Widget_FFmpegOptions(QWidget):
             ("CRF", "28"),
             ("ABR", "2500k")
         ]
+        self.video_bitrate_types: list[QRadioText] = []
         for idx, (name, default) in enumerate(enum_video_bitrate):
             radio_widget = QRadioText(name, idx, default, video_bitrate_widget)
+            self.video_bitrate_types.append(radio_widget)
             video_bitrate_layout.addWidget(radio_widget)
 
             if idx == 0:
@@ -156,7 +170,6 @@ class Widget_FFmpegOptions(QWidget):
         ##############################
         
         self.audio_options_widget = QGroupBox("Audio Options", self)
-        self.audio_options_widget.setCheckable(True)
         main_layout.addWidget(self.audio_options_widget)
         audio_options_layout = QVBoxLayout(self.audio_options_widget)
 
@@ -172,9 +185,36 @@ class Widget_FFmpegOptions(QWidget):
         # Listeners and Handlers
         ##############################
         
+        def on_copy_video_toggle() -> None:
+            if (self.preset.currentIndex() == 0):
+                self.video_options_widget.setEnabled(not self.copy_video.isChecked())
+        on_copy_video_toggle()
+        self.copy_video.checkStateChanged.connect(on_copy_video_toggle)
+        
+        def on_copy_audio_toggle() -> None:
+            if (self.preset.currentIndex() == 0):
+                self.audio_options_widget.setEnabled(not self.copy_audio.isChecked())
+        on_copy_audio_toggle()
+        self.copy_audio.checkStateChanged.connect(on_copy_audio_toggle)
+
+        def on_bitrate_toggle() -> None:
+            checked_button: QAbstractButton | None = self.video_bitrate_form.checkedButton()
+            if (type(checked_button) is not QRadioTextButton):
+                return
+            
+            active: QRadioText = self.video_bitrate_types[0] if checked_button.getParent() == self.video_bitrate_types[0] else self.video_bitrate_types[1]
+            inactive: QRadioText = self.video_bitrate_types[1] if checked_button.getParent() == self.video_bitrate_types[0] else self.video_bitrate_types[0]
+            
+            active.getInputField().setEnabled(True)
+            inactive.getInputField().setEnabled(False)
+                
+        on_bitrate_toggle()
+        self.video_bitrate_form.buttonToggled.connect(on_bitrate_toggle)
+        
         def on_preset_toggle() -> None:
             preset_dependent_widgets: list[QWidget] = [
                 self.extension,
+                self.copy_widget,
                 self.video_options_widget,
                 self.audio_options_widget
             ]
@@ -182,24 +222,21 @@ class Widget_FFmpegOptions(QWidget):
                 for widget in preset_dependent_widgets:
                     widget.setEnabled(True)
             else:
+                if (self.preset.currentIndex() != 4):
+                    current_preset: Preset = self.preset.currentData()
+                    self.extension.setCurrentText(current_preset.getExtension())
+                    
                 for widget in preset_dependent_widgets:
+                    if (widget == self.extension) and (self.preset.currentIndex() == 4):
+                        widget.setEnabled(True)
+                        continue
                     widget.setEnabled(False)
+                    
+            
+            on_copy_video_toggle()
+            on_copy_audio_toggle()
                 
         on_preset_toggle()
         self.preset.currentIndexChanged.connect(on_preset_toggle)
-
-        def on_bitrate_toggle() -> None:
-            for button in self.video_bitrate_form.buttons():
-                if (type(button) is not QRadioTextButton):
-                    continue
-
-                if (self.video_bitrate_form.button(self.video_bitrate_form.checkedId()) == button):
-                    button.getParent().getInputField().setEnabled(True)
-                    continue
-
-                button.getParent().getInputField().setEnabled(False)
-                
-        on_bitrate_toggle()
-        self.video_bitrate_form.buttonToggled.connect(on_bitrate_toggle)
 
         # self.presets_form.buttonClicked.connect(lambda: self.presets_form.button(0).setChecked(True))

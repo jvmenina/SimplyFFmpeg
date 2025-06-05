@@ -80,9 +80,11 @@ class Defaults:
     
     extensions_list: list[str] = [
         "mp4",
+        "mp3",
         "gif",
         "jpg",
-        "png"
+        "png",
+        "webp"
     ]
     
     video_presets_list: list[str] = [
