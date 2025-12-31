@@ -1,5 +1,5 @@
-from SimpleFFmpegApplication.CommonHelpers import is_output_path_valid
-from SimpleFFmpegApplication.CommonWidgets import SharedStates
+from SimplyFFmpegApplication.CommonHelpers import is_output_path_valid
+from SimplyFFmpegApplication.CommonWidgets import SharedStates
 
 
 from PyQt6.QtCore import QMimeData, QUrl

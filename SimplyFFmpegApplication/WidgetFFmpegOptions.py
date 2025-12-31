@@ -1,4 +1,4 @@
-from SimpleFFmpegApplication.CommonWidgets import Defaults, Preset, QLabelledLineEdit, QRadioText, QRadioTextButton, SharedStates
+from SimplyFFmpegApplication.CommonWidgets import Defaults, Preset, QLabelledLineEdit, QRadioText, QRadioTextButton, SharedStates
 
 
 from PyQt6.QtCore import Qt
@@ -54,18 +54,18 @@ class Widget_FFmpegOptions(QWidget):
         self.extension.currentIndexChanged.connect(lambda: self.shared_states.signals.emitExtensionChanged(str(self.extension.currentData())))
 
         ##### Overwrite?
-        overwrite_widget = QGroupBox("Overwrite?", self)
+        overwrite_widget = QGroupBox("", self)
         overwrite_layout = QHBoxLayout(overwrite_widget)
         basic_options_layout.addWidget(overwrite_widget)
 
-        self.overwrite = QCheckBox(overwrite_widget)
+        self.overwrite = QCheckBox("Overwrite?", overwrite_widget)
         overwrite_layout.addWidget(self.overwrite, 0, Qt.AlignmentFlag.AlignCenter)
         
         ##############################
         # Preset-independent Options
         ##############################
         
-        preset_independent_layout = QHBoxLayout(None)
+        preset_independent_layout = QVBoxLayout(None)
         main_layout.addLayout(preset_independent_layout)
         
         ##### Seeking and Duration
@@ -88,6 +88,14 @@ class Widget_FFmpegOptions(QWidget):
         seek_layout.addWidget(self.seek)
         seek_layout.addWidget(self.duration)
         
+        ##### hwaccel
+        hwaccel_widget = QGroupBox("Hardware Acceleration", self)
+        hwaccel_layout = QHBoxLayout(hwaccel_widget)
+        preset_independent_layout.addWidget(hwaccel_widget)
+        self.hwaccel = QLabelledLineEdit("Enable HW Accel?", "Leave blank to disable", hwaccel_widget)
+        self.hwaccel.setToolTip("Example: cuda")
+        hwaccel_layout.addWidget(self.hwaccel)
+        
         ##############################
         # FFmpeg Options -- Copy
         ##############################
@@ -106,17 +114,19 @@ class Widget_FFmpegOptions(QWidget):
         ##############################
         
         self.video_options_widget = QGroupBox("Video Options", self)
-        video_options_layout = QVBoxLayout(self.video_options_widget)
+        # video_options_layout = QVBoxLayout(self.video_options_widget)
+        video_options_layout = QGridLayout(self.video_options_widget)
         main_layout.addWidget(self.video_options_widget)
 
         ##### Video Quality
-        video_quality_layout = QHBoxLayout(None)
-        video_options_layout.addLayout(video_quality_layout)
+        # video_quality_layout = QHBoxLayout(None)
+        # video_options_layout.addLayout(video_quality_layout)
         
         # Scaling
         scaling_widget = QGroupBox("Scaling", self.video_options_widget)
         scaling_layout = QHBoxLayout(scaling_widget)
-        video_quality_layout.addWidget(scaling_widget)
+        # video_quality_layout.addWidget(scaling_widget)
+        video_options_layout.addWidget(scaling_widget, 0,0)
         
         self.video_width = QLabelledLineEdit("Width", "", scaling_widget)
         self.video_height = QLabelledLineEdit("Height", "", scaling_widget)
@@ -126,7 +136,8 @@ class Widget_FFmpegOptions(QWidget):
         # Bitrate
         video_bitrate_widget = QGroupBox("Video Bitrate", self.video_options_widget)
         video_bitrate_layout = QHBoxLayout(video_bitrate_widget)
-        video_quality_layout.addWidget(video_bitrate_widget)
+        # video_quality_layout.addWidget(video_bitrate_widget)
+        video_options_layout.addWidget(video_bitrate_widget, 0,1)
 
         self.video_bitrate_form = QButtonGroup(self)
         enum_video_bitrate: list[tuple[str, str]] = [
@@ -146,9 +157,9 @@ class Widget_FFmpegOptions(QWidget):
         # Preset
         video_preset_widget = QGroupBox("Quality Preset", self.video_options_widget)
         video_preset_layout = QHBoxLayout(video_preset_widget)
-        video_quality_layout.addWidget(video_preset_widget)
+        # video_quality_layout.addWidget(video_preset_widget)
+        video_options_layout.addWidget(video_preset_widget, 1,1)
 
-        # self.video_preset = QLabelledLineEdit("Preset:", "fast", video_preset_widget)
         self.video_preset = QComboBox(self.video_options_widget)
         for idx, vp in enumerate(Defaults.video_presets_list):
             self.video_preset.addItem(vp, vp)
@@ -159,7 +170,8 @@ class Widget_FFmpegOptions(QWidget):
         ##### Other video options
         video_misc_widget = QGroupBox("Others", self.video_options_widget)
         video_misc_layout = QHBoxLayout(video_misc_widget)
-        video_options_layout.addWidget(video_misc_widget)
+        # video_options_layout.addWidget(video_misc_widget)
+        video_options_layout.addWidget(video_misc_widget, 1,0)
 
         # FPS
         self.fps = QLabelledLineEdit("Framerate:", "60", self.video_options_widget)
@@ -222,16 +234,8 @@ class Widget_FFmpegOptions(QWidget):
                 for widget in preset_dependent_widgets:
                     widget.setEnabled(True)
             else:
-                if (self.preset.currentIndex() != 4):
-                    current_preset: Preset = self.preset.currentData()
-                    self.extension.setCurrentText(current_preset.getExtension())
-                    
                 for widget in preset_dependent_widgets:
-                    if (widget == self.extension) and (self.preset.currentIndex() == 4):
-                        widget.setEnabled(True)
-                        continue
                     widget.setEnabled(False)
-                    
             
             on_copy_video_toggle()
             on_copy_audio_toggle()

@@ -1,7 +1,7 @@
-from SimpleFFmpegApplication.WidgetFFmpegOptions import Widget_FFmpegOptions
-from SimpleFFmpegApplication.WidgetInputOutput import Widget_InputOutput
-from SimpleFFmpegApplication.CommonHelpers import print_error, print_log
-from SimpleFFmpegApplication.CommonWidgets import FFmpegWorkerProcess, GlobalSignals, Preset, QRadioTextButton, SharedStates, States
+from SimplyFFmpegApplication.WidgetFFmpegOptions import Widget_FFmpegOptions
+from SimplyFFmpegApplication.WidgetInputOutput import Widget_InputOutput
+from SimplyFFmpegApplication.CommonHelpers import print_error, print_log, custom_CSS
+from SimplyFFmpegApplication.CommonWidgets import FFmpegWorkerProcess, GlobalSignals, Preset, QRadioTextButton, SharedStates, States
 
 
 from PyQt6.QtCore import QProcess
@@ -9,7 +9,7 @@ from PyQt6.QtGui import QFont, QTextCursor
 from PyQt6.QtWidgets import QAbstractButton, QButtonGroup, QGroupBox, QHBoxLayout, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QStatusBar, QVBoxLayout, QWidget
 
 
-class SimpleFFmpeg(QMainWindow):
+class SimplyFFmpeg(QMainWindow):
     def __init__(self) -> None:
         ##############################
         # Initializations
@@ -18,16 +18,10 @@ class SimpleFFmpeg(QMainWindow):
         ##### Initializing main window
         super().__init__()
         
-        self.setWindowTitle("SimpleFFmpeg")
+        self.setWindowTitle("SimplyFFmpeg")
         self.setGeometry(300, 200, 500, 300)
-        self.setStyleSheet("""
-            QPushButton { 
-                padding: 0.35em; 
-            } 
-            QLineEdit {
-                padding: 0.15em;
-            }
-        """)
+        self.custom_CSS = custom_CSS
+        self.setStyleSheet(self.custom_CSS)
         
         ##### Initialize app-wide states
         self.shared_states = SharedStates()
@@ -44,10 +38,11 @@ class SimpleFFmpeg(QMainWindow):
         
         left_central_widget = QWidget(self)
         left_central_layout = QVBoxLayout(left_central_widget)
+        left_central_widget.setMinimumWidth(600)
         
         right_central_widget = QWidget(self)
         right_central_layout = QVBoxLayout(right_central_widget)
-        right_central_widget.setMinimumWidth(300)
+        right_central_widget.setMinimumWidth(400)
         
         central_layout.addWidget(left_central_widget)
         central_layout.addWidget(right_central_widget)
@@ -164,6 +159,10 @@ class SimpleFFmpeg(QMainWindow):
         ##### Overwrite
         if self.options_widget.overwrite.isChecked():
             states.toggleOverwrite()
+            
+        ##### hwaccel
+        if self.options_widget.hwaccel.getValue():
+            states.setHwAccel(self.options_widget.hwaccel.getValue())
         
         ##### Check for presets
         has_selected_preset: bool = self.options_widget.preset.currentIndex() != 0

@@ -1,0 +1,101 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (e.g. v1.0.0)'
+        required: true
+        type: string
+      release_name:
+        description: 'Release name'
+        required: false
+        type: string
+        default: ''
+      release_notes:
+        description: 'Release notes'
+        required: false
+        type: string
+        default: ''
+      prerelease:
+        description: 'Set as a pre-release'
+        required: false
+        type: boolean
+        default: false
+      draft:
+        description: 'Set as a draft'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+            asset_suffix: '-linux'
+            asset_ext: ''
+          - os: windows-latest
+            platform: Windows
+            asset_suffix: '-windows-x64'
+            asset_ext: '.exe'
+    
+    env:
+      asset_base_name: SimplyFFmpeg
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PyInstaller
+          python -m pip install -r requirements.txt
+      
+      - name: Build with PyInstaller
+        run: |
+          python -m PyInstaller --onefile --name ${{ env.asset_base_name }}${{ matrix.asset_suffix }} ./main.py
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.asset_base_name }}
+          path: dist/${{ env.asset_base_name }}${{ matrix.asset_suffix }}${{ matrix.asset_ext }}
+
+  release:
+    name: Create Release
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      
+      - name: Publish release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          name: ${{ inputs.release_name || inputs.release_tag }}
+          body: ${{ inputs.release_notes }}
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          # prerelease: ${{ github.event.inputs.prerelease }}
+          files: |
+            ./artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

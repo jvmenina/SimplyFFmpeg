@@ -163,3 +163,5 @@ cython_debug/
 
 # Test files
 test*.*
+temp/
+*.code-snippets

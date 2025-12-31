@@ -1,4 +1,4 @@
-from SimpleFFmpegApplication.CommonHelpers import print_error, print_log
+from SimplyFFmpegApplication.CommonHelpers import print_error, print_log
 
 
 from PyQt6.QtWidgets import (
@@ -76,6 +76,13 @@ class Defaults:
             Argument("-filter:v", "fps=60"), 
             Argument("-c:a", "copy")
         ]),
+        Preset("To mp3 (192k)", "mp3", [
+            Argument("-b:a", "192k")
+        ]),
+        Preset("To GIF", "gif", [
+            Argument("-sws_flags", "neighbor+full_chroma_int+accurate_rnd"),
+            Argument("-sws_dither", "a_dither"),
+        ]),
     ]
     
     extensions_list: list[str] = [
@@ -132,6 +139,8 @@ class States(QWidget):
         self.copy_video: Argument | None = None
         self.copy_audio: Argument | None = None
         
+        self.hw_accel: Argument | None = None
+        
         self.seek: Argument | None = None
         self.duration: Argument | None = None
         
@@ -156,6 +165,9 @@ class States(QWidget):
         self.copy_video = Argument("-c:v", "copy")
     def setCopyAudio(self) -> None:
         self.copy_audio = Argument("-c:a", "copy")
+        
+    def setHwAccel(self, hwaccel: str) -> None:
+        self.hw_accel = Argument("-hwaccel", hwaccel)
     
     def setSeek(self, seek: str) -> None:
         self.seek = Argument("-ss", seek)
@@ -184,6 +196,10 @@ class States(QWidget):
     def compileState(self) -> tuple[str, list[str]]:
         program: str = "ffmpeg"
         arguments: list[str] = []
+        
+        # hwaccel
+        if self.hw_accel:
+            arguments.extend(self.hw_accel.toList())
         
         # Input
         if not self.input_file:
