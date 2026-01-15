@@ -236,6 +236,8 @@ class Widget_FFmpegOptions(QWidget):
             else:
                 for widget in preset_dependent_widgets:
                     widget.setEnabled(False)
+                curr_preset: Preset = self.preset.currentData()
+                self.extension.setCurrentText(curr_preset.getExtension())
             
             on_copy_video_toggle()
             on_copy_audio_toggle()

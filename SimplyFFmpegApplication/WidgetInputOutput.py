@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QFileDialog, QGridLayout, QGroupBox, QLabel, QLineEd
 
 import os
 import re
+from pathlib import Path
 
 
 class Widget_InputOutput(QWidget):
@@ -101,14 +102,14 @@ class Widget_InputOutput(QWidget):
     def browseInputFile(self) -> None:
         file_name: str = QFileDialog.getOpenFileName(self, "Select Input File")[0]
         if file_name:
-            self.input_field.setText(file_name)
+            self.input_field.setText(str(Path(file_name)))
             self.setOutputPathFromInput()
         return
 
     def browseOutputDirectory(self) -> None:
         directory_name: str = QFileDialog.getExistingDirectory(self, "Select Directory")
         if directory_name:
-            self.output_field.setText(directory_name)
+            self.output_field.setText(str(Path(directory_name)))
             self.setOutputPathFromInput()
         return
 
@@ -120,8 +121,15 @@ class Widget_InputOutput(QWidget):
         extension: str = self.shared_states.extension
         assert extension
 
-        if re.search(fr"\.{extension}$", text) is None:
-            self.output_field.setText(text + f".{extension}")
+        if re.search(fr"[^\\\/]+\.{extension}$", text) is None:
+            base_filename = Path(text).stem
+            if not base_filename:
+                if os.path.isfile(self.input_field.text()):
+                    base_filename = Path(self.input_field.text()).stem
+                else:
+                    base_filename = "video"
+            
+            self.output_field.setText(str(Path(os.path.dirname(text)) / (base_filename + f".{extension}")))
         return
 
     def setOutputPathFromInput(self) -> None:
